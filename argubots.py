@@ -147,21 +147,21 @@ class RAGAgent(LLMAgent):
 
         # Step 3: Add retrieved information to the prompt and generate the final response
         self.kwargs_format['system_last'] = (
-            "Below is some retrieved background information (claims and counterarguments) from our database:\n"
+            "Here is some relevant information from our database that provides claims and counterarguments:\n"
             f"{retrieval_summary}\n\n"
-            "Use this information to help broaden the user's perspective in an extremely constructive and polite way rather than in an argumentative manner. "
-            "In your response, incorporate some relevant arguments. Answer in 1-2 sentences."
-        )
+            "Use this information to craft a thoughtful and constructive response that broadens the user's perspective. "
+            "Be polite and avoid being confrontational. Instead, aim to encourage a productive dialogue. "
+            "Incorporate relevant arguments from the retrieved information and answer concisely in 1-2 sentences."
+            )
         return super().response(d, **kwargs)
 
     def _generate_paraphrased_claim(self, d: Dialogue) -> str:
         """Paraphrase the user's last message into a clear, stand-alone claim."""
         paraphrase_prompt = (
             f"This is the entire conversation so far:\n\n{d.script()}\n\n"
-            "Paraphrase the last user message as a stand-alone claim that has the ability to be argued with. "
-            "Focus on making the claim extremely clear, explicit, and suitable for looking up counterarguments. "
-            "Return only the final claim that you created and none of the steps that it took to get there."
-        )
+            "The user's last message needs to be paraphrased into a concise, clear, and explicit claim "
+            "that can be effectively argued with. This claim should be precise and unambiguous. "
+            "Now, paraphrase the user's last message in the same style. Return only the paraphrased claim.")
         temp_dialogue = Dialogue().add("User", paraphrase_prompt)
         messages = dialogue_to_openai(temp_dialogue, speaker=self.name, **self.kwargs_format)
         response = self.client.chat.completions.create(
