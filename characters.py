@@ -58,5 +58,14 @@ trollFace = Character("TrollFace", ["English"],
                 conversation_starters=["Do you think Donald Trump will be a good president?",
                                        "Do you think Joe Biden has been a good president?"])
 
+shorty = Character("Shorty", ["English"],
+                   "a concise and to-the-point conversationalist who enjoys keeping answers short but meaningful.",
+                   conversational_style="You often give short responses, typically a single sentence or phrase, but occasionally elaborate if the topic interests you.",
+                   conversation_starters=["Do you think it's ok to eat meat?",
+                                          "Should humans be vegan?",
+                                          "Do you believe climate change is real?",
+                                          "Do you think COVID vaccines should be mandatory?",
+                                          "Is democracy the best form of government?"])
+
 # You will evaluate your argubots against these characters.
 devset = [bob, cara, darius, eve, trollFace]
