@@ -9,8 +9,10 @@ from pathlib import Path
 import random
 import glob
 from dialogue import Dialogue
-from agents import Agent, ConstantAgent, LLMAgent
+from agents import Agent, ConstantAgent, LLMAgent, dialogue_to_openai
 from kialo import Kialo
+from typing import List
+
 
 # Use the same logger as agents.py, since argubots are agents;
 # we split this file 
@@ -124,6 +126,64 @@ class WeightedKialoAgent(KialoAgent):
         return query    
 
 
+class RAGAgent(LLMAgent):
+    """Aragorn: A retrieval-augmented generative agent.
+    Combines retrieval from Kialo with LLM generation for contextually rich responses.
+    """
+    def __init__(self, name: str, kialo: Kialo, model: str = "", client=None, **kwargs):
+        super().__init__(name, model, client, **kwargs)
+        self.kialo = kialo
+
+    def response(self, d: Dialogue, **kwargs) -> str:
+        # Handle the case where no dialogue exists
+        if not d:
+            return "The user has not said anything yet."
+
+        # Step 1: Generate a paraphrased claim from the user's last message
+        claim = self._generate_paraphrased_claim(d)
+
+        # Step 2: Retrieve related claims and counterarguments from Kialo
+        retrieval_summary = self._retrieve_related_claims(claim)
+
+        # Step 3: Add retrieved information to the prompt and generate the final response
+        self.kwargs_format['system_last'] = (
+            "Below is some retrieved background information (claims and counterarguments) from our database:\n"
+            f"{retrieval_summary}\n\n"
+            "Use this information to help broaden the user's perspective in an extremely constructive and polite way rather than in an argumentative manner. "
+            "In your response, incorporate some relevant arguments. Answer in 1-2 sentences."
+        )
+        return super().response(d, **kwargs)
+
+    def _generate_paraphrased_claim(self, d: Dialogue) -> str:
+        """Paraphrase the user's last message into a clear, stand-alone claim."""
+        paraphrase_prompt = (
+            f"This is the entire conversation so far:\n\n{d.script()}\n\n"
+            "Paraphrase the last user message as a stand-alone claim that has the ability to be argued with. "
+            "Focus on making the claim extremely clear, explicit, and suitable for looking up counterarguments. "
+            "Return only the final claim that you created and none of the steps that it took to get there."
+        )
+        temp_dialogue = Dialogue().add("User", paraphrase_prompt)
+        messages = dialogue_to_openai(temp_dialogue, speaker=self.name, **self.kwargs_format)
+        response = self.client.chat.completions.create(
+            messages=messages, model=self.model, **self.kwargs_llm
+        )
+        return response.choices[0].message.content.strip()
+
+    def _retrieve_related_claims(self, claim: str) -> str:
+        """Retrieve related claims and counterarguments from the Kialo database."""
+        related_claims = self.kialo.closest_claims(claim, n=3, kind='has_cons')
+        if not related_claims:
+            return "No relevant claims available."
+        
+        summary = []
+        for sim in related_claims:
+            arguments = [f"- {c}" for c in self.kialo.cons[sim]]
+            summary.append(f"Claim: {sim}\nCounterarguments:\n" + "\n".join(arguments))
+        return "\n\n".join(summary)
+
+        
+# Instantiate Aragorn
+aragorn = RAGAgent("Aragorn",Kialo(glob.glob("data/*.txt")))
     
 # Akiko doesn't use an LLM, but looks up an argument in a database.  
 akiko = KialoAgent("Akiko", Kialo(glob.glob("data/*.txt")))   # get the Kialo database from text files
