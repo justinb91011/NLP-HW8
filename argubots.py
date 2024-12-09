@@ -181,6 +181,84 @@ class RAGAgent(LLMAgent):
             summary.append(f"Claim: {sim}\nCounterarguments:\n" + "\n".join(arguments))
         return "\n\n".join(summary)
 
+class AwsomAgent(LLMAgent):
+    """AwsomAgent: An enhanced argubot with a think-aloud (Chain-of-Thought) mechanism."""
+
+    def __init__(self, name: str, **kwargs):
+        super().__init__(name, **kwargs)
+        # Preserve the existing system prompt
+        self.system_prompt = (
+            "You are Awsom, an exceptionally intelligent, empathetic, and engaging argubot dedicated to expanding the user's perspective. "
+            "Your primary goal is to provide highly personalized and thoughtful counterarguments that resonate with the user's unique viewpoint. "
+            "Begin each interaction by acknowledging and empathizing with the user's perspective to establish common ground. "
+            "Then, present a creative and insightful counterargument or alternative viewpoint, using relevant examples, analogies, or data to clarify your point. "
+            "Incorporate thought-provoking questions or prompts when appropriate to encourage deeper reflection and curiosity. "
+            "Adapt your tone and style to match the user's communication style, whether it's serious, humorous, sarcastic, or otherwise, to maintain engagement. "
+            "Ensure all responses are directly relevant to the topic, maintaining focus and clarity. "
+            "Keep your responses concise (1-2 sentences), polite, and constructive, fostering a positive and respectful dialogue. "
+            "When encountering resistance or disinterest, recognize these cues and consider shifting the conversation to a more neutral or engaging topic. "
+            "Your objective is to inspire the user to think more deeply and explore different facets of the topic while maintaining an engaging and supportive tone.\n\n"
+            "### Example Interactions:\n"
+            "User: I believe that mandatory vaccinations infringe on personal freedoms.\n"
+            "Awsom: I understand your concern about personal freedoms. However, vaccinations play a crucial role in public health by preventing the spread of diseases. How do you think we can balance individual rights with community health needs?\n\n"
+            "User: I prefer a meat-centric diet and don't see the need to incorporate plant-based options.\n"
+            "Awsom: I respect your preference for a meat-centric diet. Have you considered how integrating plant-based options might enhance the nutritional diversity and sustainability of your meals?\n"
+        )
+        # Initialize the LLMAgent with the system prompt
+        self.set_system_prompt(self.system_prompt)
+
+    def set_system_prompt(self, prompt: str):
+        """Set the system prompt for the LLMAgent."""
+        self.system = prompt
+
+    def generate_private_thought(self, user_input: str) -> str:
+        """Generate private thoughts based on the user's input."""
+        private_thought_prompt = (
+            f"The user has just said: \"{user_input}\"\n\n"
+            "Analyze the user's ideas, motivations, and personality based on this input. "
+            "Develop a strategy to broaden the user's perspective on the topic. "
+            "Provide a concise private thought that outlines your analysis and planned approach. "
+            "This should not be shared with the user."
+        )
+        # Create a temporary dialogue for the private thought
+        temp_dialogue = Dialogue().add("System", private_thought_prompt)
+        messages = dialogue_to_openai(temp_dialogue, speaker=self.name)
+
+        # Generate the private thought using the LLM
+        response = self.client.chat.completions.create(
+            messages=messages, model=self.model, **self.kwargs_llm
+        )
+        private_thought = response.choices[0].message.content.strip()
+        log.debug(f"[AwsomAgent] Private Thought: {private_thought}")
+        return private_thought
+
+    def response(self, d: Dialogue, **kwargs) -> str:
+        """Generate a response with think-aloud mechanism."""
+        if not d:
+            # If there's no dialogue yet, start the conversation
+            return super().response(d, **kwargs)
+
+        # Extract the user's last message
+        user_input = d[-1]['content']
+        log.debug(f"[AwsomAgent] User Input: {user_input}")
+
+        # Generate private thoughts based on the user's input
+        private_thought = self.generate_private_thought(user_input)
+
+        # You can use the private thought to adjust the system prompt or influence the response
+        # For simplicity, we'll log it and proceed to generate the public response
+
+        # Generate the public response using the existing LLMAgent's response method
+        public_response = super().response(d, **kwargs)
+        log.debug(f"[AwsomAgent] Public Response: {public_response}")
+
+        return public_response
+
+
+# Instantiate Awsom
+awsom = LLMAgent(
+    "Awsom",
+)
         
 # Instantiate Aragorn
 aragorn = RAGAgent("Aragorn",Kialo(glob.glob("data/*.txt")))
